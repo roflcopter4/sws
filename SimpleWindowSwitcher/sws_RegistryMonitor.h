@@ -41,6 +41,7 @@ sws_error_t sws_RegistryMonitor_Initialize(
 	char* buffer,
 	size_t szBuffer,
 	void(*callback)(void* ptr),
-	void* ptr
+	void* ptr,
+	HANDLE hEvEx
 );
 #endif

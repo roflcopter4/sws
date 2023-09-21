@@ -1,21 +1,23 @@
 #ifndef _H_SWS_UTILITY_H_
 #define _H_SWS_UTILITY_H_
 #include <Windows.h>
-inline long long sws_milliseconds_now() {
+inline unsigned long long sws_milliseconds_now(void)
+{
     LARGE_INTEGER s_frequency;
     BOOL s_use_qpc = QueryPerformanceFrequency(&s_frequency);
     if (s_use_qpc) {
         LARGE_INTEGER now;
         QueryPerformanceCounter(&now);
-        return (1000LL * now.QuadPart) / s_frequency.QuadPart;
+        return (1000ULL * now.QuadPart) / s_frequency.QuadPart;
     }
     else {
-        return GetTickCount();
+        return GetTickCount64();
     }
 }
 
 // https://stackoverflow.com/questions/13397571/precise-thread-sleep-needed-max-1ms-error
-inline BOOLEAN sws_nanosleep(LONGLONG ns) {
+inline BOOLEAN sws_nanosleep(LONGLONG ns)
+{
     /* Declarations */
     HANDLE timer;   /* Timer handle */
     LARGE_INTEGER li;   /* Time defintion */

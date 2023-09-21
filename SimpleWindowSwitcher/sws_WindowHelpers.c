@@ -1,5 +1,20 @@
 #include "sws_WindowHelpers.h"
 
+extern int WINAPI GdiplusStartup(
+    OUT ULONG_PTR *token,
+    const void *input,
+    OUT void *output);
+extern void WINAPI GdiplusShutdown(ULONG_PTR token);
+
+BOOL (*_sws_IsTopLevelWindow)(HWND);
+HWND (*_sws_GetProgmanWindow)(void);
+int  (*sws_InternalGetWindowText)(HWND, LPWSTR, int);
+FILETIME sws_start_ft;
+FILETIME sws_ancient_ft;
+HICON    sws_DefAppIcon;
+HICON    sws_LegacyDefAppIcon;
+IAppResolver_8 *sws_AppResolver;
+
 ULONG_PTR _sws_gdiplus_token;
 RTL_OSVERSIONINFOW sws_global_rovi;
 DWORD32 sws_global_ubr;
@@ -31,7 +46,8 @@ DEFINE_GUID(POLID_TurnOffSPIAnimations, 0xD7AF00A, 0xB468, 0x4A39, 0xB0, 0x16, 0
 
 BOOL sws_WindowHelpers_IsValidMonitor(HMONITOR hMonitor, HDC unnamedParam2, LPRECT unnamedParam3, HMONITOR* pMonitor)
 {
-	if (!pMonitor || !*pMonitor) return FALSE;
+	if (!pMonitor || !*pMonitor)
+		return FALSE;
 	if (hMonitor == *pMonitor)
 	{
 		*pMonitor = NULL;
@@ -46,9 +62,7 @@ sws_error_t sws_WindowHelpers_PermitDarkMode(HWND hWnd)
 	{
 		_sws_SetPreferredAppMode(TRUE);
 		if (hWnd)
-		{
 			_sws_AllowDarkModeForWindow(hWnd, TRUE);
-		}
 		return SWS_ERROR_SUCCESS;
 	}
 	else
@@ -105,13 +119,9 @@ sws_error_t sws_WindowHelpers_SetWindowBlur(HWND hWnd, int type, DWORD Color, DW
 	policy.nFlags = 0;
 	WINCOMPATTRDATA data = { 19, &policy, sizeof(ACCENTPOLICY) }; // WCA_ACCENT_POLICY=19
 	if (_sws_SetWindowCompositionAttribute)
-	{
 		_sws_SetWindowCompositionAttribute(hWnd, &data);
-	}
 	else
-	{
 		return SWS_ERROR_NOT_INITIALIZED;
-	}
 }
 
 HWND* _sws_WindowHelpers_Gui_BuildWindowList
@@ -135,11 +145,9 @@ HWND* _sws_WindowHelpers_Gui_BuildWindowList
 	lv_Max = 512;
 
 	// retry to get list
-	for (;;)
+	while ((lv_List = (HWND *)malloc(lv_Max * sizeof(HWND))) != NULL)
 	{
 		// allocate list
-		if ((lv_List = (HWND*)malloc(lv_Max * sizeof(HWND))) == NULL)
-			break;
 
 		// call the api
 		lv_NtStatus = pNtUserBuildHwndList(
@@ -170,18 +178,6 @@ HWND* _sws_WindowHelpers_Gui_BuildWindowList
 
 	// return the list, or NULL when failed
 	return lv_List;
-}
-
-static void _sws_WindowHelpers_FindWindowExReverseOrder(HWND hWnd, WNDENUMPROC in_Proc, LPARAM in_Param)
-{
-	hWnd = FindWindowEx(NULL, hWnd, NULL, NULL);
-	if (!hWnd)
-	{
-		return;
-	}
-	test(hWnd, in_Proc, in_Param);
-	if (!in_Proc(hWnd, in_Param))
-		return;
 }
 
 /********************************************************/
@@ -283,13 +279,9 @@ BOOL _sws_WindowHelpers_IsValidDesktopZOrderBand(HWND hWnd, int bAdditionalCheck
 		GetWindowTextW(hWnd, wszWindowText, 200);
 		bRet = _sws_IsBandValidToInclude[dwBand];
 		if (_sws_WindowHelpers_IsWindowA920(hWnd))
-		{
 			bRet = TRUE;
-		}
 		else if (!bRet)
-		{
 			return bRet;
-		}
 		if (bAdditionalChecks)
 		{
 			//wprintf(L"%s %d %d\n", wszWindowText, dwBand, _sws_IsShellManagedWindow(hWnd));
@@ -303,9 +295,7 @@ BOOL _sws_WindowHelpers_IsWindowNotDesktopOrTrayHelper(HWND hWnd)
 {
 	ATOM SecondaryTaskbarAtom = RegisterWindowMessageW(L"Shell_SecondaryTrayWnd");
 	if (GetClassWord(hWnd, GCW_ATOM) == SecondaryTaskbarAtom)
-	{
 		return (SecondaryTaskbarAtom == 0);
-	}
 	return TRUE;
 }
 
@@ -323,13 +313,9 @@ BOOL _sws_WindowHelpers_IsWindowNotDesktopOrTray(HWND hWnd, HWND hWndDesktop)
 BOOL _sws_WindowHelpers_IsValidTabWindowForTray(HWND hWnd)
 {
 	if (!hWnd)
-	{
 		return FALSE;
-	}
 	if (!_sws_WindowHelpers_IsWindowA920(hWnd))
-	{
 		return TRUE;
-	}
 	IPropertyStore* propStore = NULL;
 	SHGetPropertyStoreForWindow(
 		hWnd,
@@ -479,7 +465,8 @@ __int64 __fastcall _sws_IsTaskWindow(HWND a2)
 wchar_t* sws_WindowHelpers_GetAUMIDForHWND(HWND hWnd)
 {
 	WCHAR* pszAppId;
-	if (SUCCEEDED(sws_AppResolver->lpVtbl->GetAppIDForWindow(sws_AppResolver, hWnd, &pszAppId, NULL, NULL, NULL)) && pszAppId) return pszAppId;
+	if (SUCCEEDED(sws_AppResolver->lpVtbl->GetAppIDForWindow(sws_AppResolver, hWnd, &pszAppId, NULL, NULL, NULL)) && pszAppId)
+		return pszAppId;
 	return NULL;
 }
 
@@ -489,9 +476,7 @@ BOOL sws_WindowHelpers_IsTaskbarWindow(HWND hWnd, HWND hWndWallpaper)
 		_sws_WindowHelpers_IsWindowNotDesktopOrTray(hWnd, hWndWallpaper) &&
 		IsWindowVisible(hWnd) &&
 		!_sws_HungWindowFromGhostWindow(hWnd))
-	{
 		return _sws_WindowHelpers_ShouldAddWindowToTrayHelper(hWnd);
-	}
 	return FALSE;
 }
 
@@ -513,22 +498,16 @@ BOOL sws_WindowHelpers_IsAltTabWindow(HWND hWnd)
 	// Bugfix: Exclude hung shell frame (immersive) UWP windows, as we already include
 	// ghost app windows in their place already
 	if (sws_IsShellFrameWindow(hWnd) && !_sws_GhostWindowFromHungWindow(hWnd))
-	{
 		return TRUE;
-	}
 	// Next, we need to check whether the window is shell managed and exclude it if so
 	// Shell managed windows, as far as I can tell, represent all immersive UI the
 	// Windows shell might present the user with, like: Start menu, Search (Win+Q),
 	// notifications, taskbars etc
 	if (_sws_IsShellManagedWindow(hWnd) && !sws_WindowHelpers_ShouldTreatShellManagedWindowAsNotShellManaged(hWnd))
-	{
 		return FALSE;
-	}
 	// Also, exclude some windows created by ExplorerPatcher
 	if (sws_WindowHelpers_IsWindowShellManagedByExplorerPatcher(hWnd))
-	{
 		return FALSE;
-	}
 	// Lastly, this check works with the remaining classic window and determines if it is a
 	// "task window" and only includes it in Alt-Tab if so; this check is taken from
 	// "AltTab.dll" in Windows 7 and this is how that OS decided to include a window in its
@@ -540,13 +519,9 @@ void sws_WindowHelpers_GetDesktopText(wchar_t* wszTitle)
 {
 	HANDLE hExplorerFrame = GetModuleHandleW(L"ExplorerFrame.dll");
 	if (hExplorerFrame)
-	{
 		LoadStringW(hExplorerFrame, 13140, wszTitle, MAX_PATH);
-	}
 	else
-	{
 		wcscat_s(wszTitle, MAX_PATH, L"Desktop");
-	}
 }
 
 static BOOL CALLBACK _sws_WindowHelpers_GetWallpaperHWNDCallback(HWND hwnd, LPARAM lParam)
@@ -558,9 +533,7 @@ static BOOL CALLBACK _sws_WindowHelpers_GetWallpaperHWNDCallback(HWND hwnd, LPAR
 	{
 		HWND t = FindWindowExW(NULL, hwnd, L"WorkerW", NULL);
 		if (t)
-		{
 			*ret = t;
-		}
 	}
 	return TRUE;
 }
@@ -575,9 +548,7 @@ BOOL sws_WindowHelpers_EnsureWallpaperHWND()
 		// CDesktopBrowser::_IsDesktopWallpaperInitialized and CWallpaperRenderer::ExpireImages
 		SendMessageTimeoutW(hProgman, 0x052C, 10, 0, SMTO_NORMAL, 1000, &res0);
 		if (FAILED(res0))
-		{
 			return FALSE;
-		}
 		// Generate wallpaper window
 		SendMessageTimeoutW(hProgman, 0x052C, 13, 0, SMTO_NORMAL, 1000, &res1);
 		SendMessageTimeoutW(hProgman, 0x052C, 13, 1, SMTO_NORMAL, 1000, &res2);
@@ -597,10 +568,8 @@ HWND sws_WindowHelpers_GetWallpaperHWND()
 BOOL CALLBACK sws_WindowHelpers_AddAltTabWindowsToTimeStampedHWNDList(HWND hWnd, HDPA hdpa)
 {
 	if (!hdpa)
-	{
 		return FALSE;
-	}
-	if (sws_WindowHelpers_IsAltTabWindow(hWnd, NULL))
+	if (sws_WindowHelpers_IsAltTabWindow(hWnd))
 	{
 		sws_tshwnd* tshWnd = malloc(sizeof(sws_tshwnd));
 		if (tshWnd)
@@ -680,9 +649,7 @@ HBITMAP sws_WindowHelpers_CreateAlphaTextBitmap(LPCWSTR inText, HFONT inFont, DW
 BOOL sws_WindowHelpers_AreAnimationsAllowed()
 {
 	if (sws_SHWindowsPolicy(&POLID_TurnOffSPIAnimations))
-	{
 		return FALSE;
-	}
 
 	BOOL bAnimationsEnabled = FALSE;
 	SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &bAnimationsEnabled, 0);
@@ -693,13 +660,9 @@ void sws_WindowHelpers_GetWindowText(HWND hWnd, LPCWSTR lpWStr, DWORD dwLength)
 {
 	HWND hWndGhost = _sws_GhostWindowFromHungWindow(hWnd);
 	if (hWndGhost)
-	{
 		sws_InternalGetWindowText(hWndGhost, lpWStr, dwLength);
-	}
 	else
-	{
 		sws_InternalGetWindowText(hWnd, lpWStr, dwLength);
-	}
 }
 
 HWND sws_WindowHelpers_GetLastActivePopup(HWND hWnd)
@@ -754,6 +717,8 @@ void sws_WindowHelpers_Clear()
 	}
 }
 
+typedef void (FAR WINAPI *sws_LoadIconWithScaleDown_t)(HINSTANCE, PCWSTR, int, int, HICON *);
+
 sws_error_t sws_WindowHelpers_Initialize()
 {
 	sws_error_t rv = SWS_ERROR_SUCCESS;
@@ -773,28 +738,24 @@ sws_error_t sws_WindowHelpers_Initialize()
 	{
 		_sws_hComctl32 = LoadLibraryW(L"Comctl32.dll");
 		if (!_sws_hComctl32)
-		{
 			rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_LOADLIBRARY_FAILED), NULL);
-		}
 	}
 	if (!rv)
 	{
 		sws_LoadIconWithScaleDown = GetProcAddress(_sws_hComctl32, "LoadIconWithScaleDown");
 		if (!sws_LoadIconWithScaleDown)
-		{
 			rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-		}
 	}
 	if (!rv)
 	{
-		sws_LoadIconWithScaleDown(
+		((sws_LoadIconWithScaleDown_t)sws_LoadIconWithScaleDown)(
 			(HINSTANCE)NULL,
 			(PCWSTR)MAKEINTRESOURCEW(IDI_APPLICATION),
 			(int)128,
 			(int)128,
 			(HICON*)(&(sws_DefAppIcon))
 		);
-		sws_LoadIconWithScaleDown(
+		((sws_LoadIconWithScaleDown_t)sws_LoadIconWithScaleDown)(
 			(HINSTANCE)NULL,
 			(PCWSTR)MAKEINTRESOURCEW(IDI_APPLICATION),
 			(int)128,
@@ -808,24 +769,19 @@ sws_error_t sws_WindowHelpers_Initialize()
 		UINT32 gdiplusStartupInput[100];
 		ZeroMemory(gdiplusStartupInput, 100);
 		gdiplusStartupInput[0] = 1;
-		rv = sws_error_Report(sws_error_GetFromGdiplusStatus(GdiplusStartup(&_sws_gdiplus_token, &gdiplusStartupInput)), NULL);
+		rv = sws_error_Report(sws_error_GetFromGdiplusStatus(GdiplusStartup(&_sws_gdiplus_token, &gdiplusStartupInput, NULL)), NULL);
 	}
 	if (!rv)
 	{
 		_sws_hShlwapi = LoadLibraryW(L"Shlwapi.dll");
 		if (!_sws_hShlwapi)
-		{
 			rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_LOADLIBRARY_FAILED), NULL);
-		}
 	}
 	if (!rv)
 	{
 		sws_SHRegGetValueFromHKCUHKLM = GetProcAddress(_sws_hShlwapi, "SHRegGetValueFromHKCUHKLM");
 		if (!sws_SHRegGetValueFromHKCUHKLM)
-		{
 			rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-		}
-
 	}
 	if (!rv)
 	{
@@ -833,9 +789,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_hWin32u = LoadLibraryW(L"win32u.dll");
 			if (!_sws_hWin32u)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_LOADLIBRARY_FAILED), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -844,9 +798,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_pNtUserBuildHwndList = (NtUserBuildHwndList)GetProcAddress(_sws_hWin32u, "NtUserBuildHwndList");
 			if (!_sws_pNtUserBuildHwndList)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -855,9 +807,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_hUser32 = LoadLibraryW(L"user32.dll");
 			if (!_sws_hUser32)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_LOADLIBRARY_FAILED), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -866,9 +816,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_HungWindowFromGhostWindow = (pHungWindowFromGhostWindow)GetProcAddress(_sws_hUser32, "HungWindowFromGhostWindow");
 			if (!_sws_HungWindowFromGhostWindow)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -877,9 +825,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_GhostWindowFromHungWindow = (pGhostWindowFromHungWindow)GetProcAddress(_sws_hUser32, "GhostWindowFromHungWindow");
 			if (!_sws_GhostWindowFromHungWindow)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -888,9 +834,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_SetWindowCompositionAttribute = (pSetWindowCompositionAttribute)GetProcAddress(_sws_hUser32, "SetWindowCompositionAttribute");
 			if (!_sws_SetWindowCompositionAttribute)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -899,9 +843,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_IsShellManagedWindow = (pSetWindowCompositionAttribute)GetProcAddress(_sws_hUser32, (LPCSTR)2574);
 			if (!_sws_IsShellManagedWindow)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -910,9 +852,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			sws_IsShellFrameWindow = (pSetWindowCompositionAttribute)GetProcAddress(_sws_hUser32, (LPCSTR)2573);
 			if (!sws_IsShellFrameWindow)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -921,9 +861,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_CreateWindowInBand = (pCreateWindowInBand)GetProcAddress(_sws_hUser32, "CreateWindowInBand");
 			if (!_sws_CreateWindowInBand)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -932,9 +870,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_GetWindowBand = GetProcAddress(_sws_hUser32, "GetWindowBand");
 			if (!_sws_GetWindowBand)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -943,9 +879,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_SetWindowBand = GetProcAddress(_sws_hUser32, "SetWindowBand");
 			if (!_sws_SetWindowBand)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -954,9 +888,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_IsTopLevelWindow = GetProcAddress(_sws_hUser32, "IsTopLevelWindow");
 			if (!_sws_IsTopLevelWindow)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-			}
 		}
 	}
 	/*if (!rv)
@@ -976,9 +908,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			sws_InternalGetWindowText = GetProcAddress(_sws_hUser32, "InternalGetWindowText");
 			if (!sws_InternalGetWindowText)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -987,9 +917,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_InternalGetWindowIcon = GetProcAddress(_sws_hUser32, "InternalGetWindowIcon");
 			if (!_sws_InternalGetWindowIcon)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-			}
 		}
 	}
 	/*if (!rv)
@@ -1009,9 +937,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_hUxtheme = LoadLibraryW(L"uxtheme.dll");
 			if (!_sws_hUxtheme)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_LOADLIBRARY_FAILED), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -1020,9 +946,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_ShouldSystemUseDarkMode = GetProcAddress(_sws_hUxtheme, (LPCSTR)138);
 			if (!_sws_ShouldSystemUseDarkMode)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -1031,9 +955,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_SetPreferredAppMode = GetProcAddress(_sws_hUxtheme, (LPCSTR)135);
 			if (!_sws_SetPreferredAppMode)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -1042,9 +964,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_AllowDarkModeForWindow = GetProcAddress(_sws_hUxtheme, (LPCSTR)133);
 			if (!_sws_AllowDarkModeForWindow)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -1053,9 +973,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_RefreshImmersiveColorPolicyState = GetProcAddress(_sws_hUxtheme, (LPCSTR)104);
 			if (!_sws_RefreshImmersiveColorPolicyState)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -1064,9 +982,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			_sws_hShcore = LoadLibraryW(L"shcore.dll");
 			if (!_sws_hShcore)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_LOADLIBRARY_FAILED), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -1075,9 +991,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			sws_SHWindowsPolicy = GetProcAddress(_sws_hShcore, (LPCSTR)190);
 			if (!sws_SHWindowsPolicy)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_FUNCTION_NOT_FOUND), NULL);
-			}
 		}
 	}
 	if (!rv)
@@ -1086,9 +1000,7 @@ sws_error_t sws_WindowHelpers_Initialize()
 		{
 			CoCreateInstance(&CLSID_StartMenuCacheAndAppResolver, NULL, CLSCTX_INPROC_SERVER | CLSCTX_INPROC_HANDLER, &IID_IAppResolver_8, (void**)&sws_AppResolver);
 			if (!sws_AppResolver)
-			{
 				rv = sws_error_Report(sws_error_GetFromInternalError(SWS_ERROR_APPRESOLVER_NOT_AVAILABLE), NULL);
-			}
 		}
 	}
 	return rv;

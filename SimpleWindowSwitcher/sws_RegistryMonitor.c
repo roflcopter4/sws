@@ -79,7 +79,9 @@ sws_error_t sws_RegistryMonitor_Notify(sws_RegistryMonitor* _this, DWORD dwWakeM
 			{
 				return sws_error_Report(sws_error_GetFromWin32Error(GetLastError()), NULL);
 			}
-			_this->callback(_this->ptr, TRUE, _this->buffer, _this->szBuffer);
+
+			((void (*)(void *, BOOL, char *, size_t))_this->callback)(_this->ptr, TRUE, _this->buffer, _this->szBuffer);
+
 			lRes = RegNotifyChangeKeyValue(
 				_this->hKeyLM,
 				FALSE,

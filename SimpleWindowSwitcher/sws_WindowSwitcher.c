@@ -1,5 +1,11 @@
 #include "sws_WindowSwitcher.h"
 
+
+extern void WINAPI EndTask(HWND, BOOL, BOOL);
+extern void WINAPI GdipCreateFromHDC(HDC, void **);
+extern void WINAPI GdipDeleteGraphics(void *);
+
+
 static void _sws_WindowSwitcher_UpdateAccessibleText(sws_WindowSwitcher* _this)
 {
     sws_WindowSwitcherLayoutWindow* pWindowList = _this->layout.pWindowList.pList;
@@ -496,6 +502,8 @@ void _sws_WindowSwitcher_SwitchToSelectedItemAndDismiss(sws_WindowSwitcher* _thi
     ShowWindow(_this->hWnd, SW_HIDE);
 }
 
+extern sws_error_t sws_WindowHelpers_RefreshImmersiveColorPolicyState(void);
+
 void sws_WindowSwitcher_RefreshTheme(sws_WindowSwitcher* _this)
 {
     sws_WindowHelpers_RefreshImmersiveColorPolicyState();
@@ -504,7 +512,7 @@ void sws_WindowSwitcher_RefreshTheme(sws_WindowSwitcher* _this)
     {
         _this->bIsDarkMode = _this->dwColorScheme - 1;
     }
-    printf("[sws] Refreshing theme: %d\n", _this->dwTheme);
+    printf("[sws] Refreshing theme: %lu\n", _this->dwTheme);
     INT preference = _this->dwCornerPreference;
     DwmSetWindowAttribute(_this->hWnd, DWMWA_WINDOW_CORNER_PREFERENCE, &preference, sizeof(preference));
     MARGINS marGlassInset = { 0, 0, 0, 0 };
@@ -1635,7 +1643,7 @@ static void WINAPI _sws_WindowSwitcher_Show(sws_WindowSwitcher* _this)
     }
     DPA_DestroyCallback(hdpa, _sws_WindowSwitcher_free_stub, 0);
     long long a5 = sws_milliseconds_now();
-    printf("[sws] WindowSwitcher::Show %x [[ %lld + %lld + %lld + %lld = %lld ]]\n", _this->hWndWallpaper, a2 - a1, a3 - a2, a4 - a3, a5 - a4, a5 - a1);
+    printf("[sws] WindowSwitcher::Show %p [[ %lld + %lld + %lld + %lld = %lld ]]\n", (void *)_this->hWndWallpaper, a2 - a1, a3 - a2, a4 - a3, a5 - a4, a5 - a1);
     _sws_WindowSwitcher_Calculate(_this, pOldHWNDs, cntOldHWNDSs, dwOldIndex);
     if (pOldHWNDs) free(pOldHWNDs);
     if (_this->layout.pWindowList.cbSize == 0)
@@ -3115,7 +3123,8 @@ __declspec(dllexport) sws_error_t sws_WindowSwitcher_Initialize(sws_WindowSwitch
                 &dwInitial,
                 dwSize,
                 sws_WindowSwitcher_RefreshTheme,
-                _this
+                _this,
+                NULL
             );
             DWORD blur = (dwInitial / 100.0) * 255;
             if (_this->hTheme) sws_WindowHelpers_SetWindowBlur(_this->hWnd, 4, _this->bIsDarkMode ? SWS_WINDOWSWITCHER_BACKGROUND_COLOR : SWS_WINDOWSWITCHER_BACKGROUND_COLOR_LIGHT, blur);
@@ -3149,7 +3158,7 @@ __declspec(dllexport) sws_error_t sws_WindowSwitcher_Initialize(sws_WindowSwitch
             {
                 RECT rc;
                 GetWindowRect(_this->hWndWallpaper, &rc);
-                printf("[sws] Wallpaper RECT %d %d %d %d\n", rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top);
+                printf("[sws] Wallpaper RECT %ld %ld %ld %ld\n", rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top);
                 sws_WindowSwitcher_RefreshTheme(_this);
             }
             else

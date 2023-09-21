@@ -1,6 +1,19 @@
 #include "sws_IconPainter.h"
 #include "sws_WindowSwitcher.h"
 
+
+extern void WINAPI GdipBitmapLockBits(void *, INT *, INT, INT, void *);
+extern void WINAPI GdipBitmapUnlockBits(void *, void *);
+extern void WINAPI GdipCreateBitmapFromHBITMAP(HBITMAP, HPALETTE, void *);
+extern void WINAPI GdipCreateBitmapFromHICON(HICON, void **);
+extern void WINAPI GdipCreateBitmapFromScan0(INT, INT, INT, INT, BYTE *, void *);
+extern void WINAPI GdipDisposeImage(void *);
+extern void WINAPI GdipDrawImageRectI(void *, void *, INT, INT, INT, INT);
+extern void WINAPI GdipGetImageHeight(void *, UINT *);
+extern void WINAPI GdipGetImagePixelFormat(void *, INT *);
+extern void WINAPI GdipGetImageWidth(void *, UINT *);
+
+
 void sws_IconPainter_DrawIcon(HICON hIcon, HDC hDC, HBRUSH hBrush, void* pGdipGraphics, INT x, INT y, INT w, INT h, RGBQUAD bkcol, BOOL bShouldFillBackground)
 {
     if (hIcon == NULL || hDC == NULL || w == 0 || h == 0)
@@ -167,7 +180,7 @@ void sws_IconPainter_DrawIcon(HICON hIcon, HDC hDC, HBRUSH hBrush, void* pGdipGr
         // Fallback to crappier drawing using GDI if GDI+ is unavailable
         if (bShouldFillBackground)
         {
-            DrawIconEx(hDC, x, y, hIcon, w, h, 0, NULL, hBrush, DI_NORMAL);
+            DrawIconEx(hDC, x, y, hIcon, w, h, 0, hBrush, DI_NORMAL);
         }
         else
         {

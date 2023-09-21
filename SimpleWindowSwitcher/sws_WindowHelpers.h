@@ -83,9 +83,9 @@ typedef struct IAppResolver_8Vtbl
 	ULONG(STDMETHODCALLTYPE* Release)(
 		sws_IInputSwitchControl* This);
 
-	HRESULT (STDMETHODCALLTYPE* GetAppIDForShortcut)();
-	HRESULT (STDMETHODCALLTYPE* GetAppIDForShortcutObject)();
-	HRESULT (STDMETHODCALLTYPE* GetAppIDForWindow)(HWND hWnd, WCHAR** pszAppId, void* pUnknown1, void* pUnknown2, void* pUnknown3);
+	HRESULT (STDMETHODCALLTYPE* GetAppIDForShortcut)(void);
+	HRESULT (STDMETHODCALLTYPE* GetAppIDForShortcutObject)(void);
+	HRESULT (STDMETHODCALLTYPE* GetAppIDForWindow)(IAppResolver_8 *, HWND hWnd, WCHAR** pszAppId, void* pUnknown1, void* pUnknown2, void* pUnknown3);
 	HRESULT (STDMETHODCALLTYPE* GetAppIDForProcess)(DWORD dwProcessId, WCHAR** pszAppId, void* pUnknown1, void* pUnknown2, void* pUnknown3);
 
 	END_INTERFACE
@@ -168,19 +168,14 @@ extern BOOL(*_sws_ShouldSystemUseDarkMode)();
 extern void(*_sws_RefreshImmersiveColorPolicyState)();
 extern HINSTANCE _sws_hUxtheme;
 
-BOOL(*_sws_IsTopLevelWindow)(HWND);
-
-HWND(*_sws_GetProgmanWindow)();
-
-int(*sws_InternalGetWindowText)(HWND, LPWSTR, int);
-
-FILETIME sws_start_ft;
-FILETIME sws_ancient_ft;
-
-HICON sws_DefAppIcon;
-HICON sws_LegacyDefAppIcon;
-
-IAppResolver_8* sws_AppResolver;
+extern BOOL (*_sws_IsTopLevelWindow)(HWND);
+extern HWND (*_sws_GetProgmanWindow)(void);
+extern int  (*sws_InternalGetWindowText)(HWND, LPWSTR, int);
+extern FILETIME sws_start_ft;
+extern FILETIME sws_ancient_ft;
+extern HICON    sws_DefAppIcon;
+extern HICON    sws_LegacyDefAppIcon;
+extern IAppResolver_8 *sws_AppResolver;
 
 inline FILETIME sws_WindowHelpers_GetStartTime()
 {
@@ -317,9 +312,7 @@ inline BOOL sws_WindowHelpers_GetOSVersion(PRTL_OSVERSIONINFOW lpRovi)
 		{
 			lpRovi->dwOSVersionInfoSize = sizeof(RTL_OSVERSIONINFOW);
 			if (STATUS_SUCCESS == fxPtr(lpRovi))
-			{
 				return TRUE;
-			}
 		}
 	}
 	return FALSE;

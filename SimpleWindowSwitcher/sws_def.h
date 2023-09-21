@@ -1,6 +1,8 @@
 #ifndef _H_SWS_DEF_H_
 #define _H_SWS_DEF_H_
-#define UNICODE
+#ifndef UNICODE
+# define UNICODE
+#endif
 #include <Windows.h>
 
 #define SWS_GUID_TEXTUAL "{BEA057BB-66C7-4758-A610-FAE6013E9F98}"
